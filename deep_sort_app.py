@@ -23,9 +23,9 @@ json_file_path = "./bowl_data_15_20_titan.json"
 with open(json_file_path, "r") as json_file:
     data = json.load(json_file)
 points = []
-for i in range(1, len(data['00004.png630994']['regions'])):
-    x_points =  data['00004.png630994']['regions'][i]['shape_attributes']['all_points_x']
-    y_points = data['00004.png630994']['regions'][i]['shape_attributes']['all_points_y']
+for i in range(1, len(data['frame_0000.jpg132441']['regions'])):
+    x_points =  data['frame_0000.jpg132441']['regions'][i]['shape_attributes']['all_points_x']
+    y_points = data['frame_0000.jpg132441']['regions'][i]['shape_attributes']['all_points_y']
     # x_poly.append(x_points)
     # y_poly.append(y_points)
     polygon = []
@@ -302,21 +302,25 @@ def run(sequence_dir, detection_file, output_file, min_confidence,
         # print(" previous frame stats : ", prev_frame_stats)
         # print("curfrent frame stats : ", curr_frame_stats)
         region_vel = {}
+
+        for keys in curr_frame_stats:
+            region_vel[keys] = {"velocity" : 0.0}
+
         for keys in curr_frame_stats:
             # print(keys)
             # print(" previous frames encountered : ", prev_frame_stats[keys]["objects_encountered"])
             
-            matching_ids = np.intersect1d(curr_frame_stats[keys]["objects_encountered"], prev_frame_stats[keys]["objects_encountered"])
             
             list1_array = np.array(prev_frame_stats[keys]["objects_encountered"])
             list2_array = np.array(curr_frame_stats[keys]["objects_encountered"])
             matching_indices = np.where(np.isin(list1_array, list2_array))[0]
-            matching_ids_copy = list1_array[matching_indices]
+            matching_ids = list1_array[matching_indices]
             # matching_ids_copy = prev_frame_stats[matching_indices]
-            indexes = []
+            # indexes = []
             # print(" matching ids are {} and {}".format(matching_ids, matching_ids_copy))
-            matching_id_copy  = matching_ids_copy.tolist()
-            for index, num in enumerate(matching_ids_copy):
+            # matching_id_copy  = matching_ids.tolist()
+            part_instant_velocity = []
+            for index, num in enumerate(matching_ids):
                 # print(" num is : ", num)
                 for i, value in enumerate(curr_frame_stats[keys]["objects_encountered"]):
                     # print(" value is : {} and i is : {}".format(value, i))
@@ -326,9 +330,13 @@ def run(sequence_dir, detection_file, output_file, min_confidence,
                         id_displacement = np.sqrt((curr_frame_stats[keys]["object_positions"][i][0] - prev_frame_stats[keys]["object_positions"][index][0])**2 + 
                                                   (curr_frame_stats[keys]["object_positions"][i][1] - prev_frame_stats[keys]["object_positions"][index][1])**2)
                         time_taken = curr_frame_stats[keys]["object_time"] - prev_frame_stats[keys]["object_time"]
-                        instant_velocity = id_displacement / time_taken
-                        region_vel[keys] = {"velocity" : instant_velocity}
+                        part_instant_velocity.append(id_displacement / time_taken)
                         break
+                    
+            region_vel[keys]["velocity"]  =round(np.mean(part_instant_velocity), 4)
+            if np.isnan(region_vel[keys]["velocity"]):
+                region_vel[keys]["velocity"] = 0.0
+                    
         
         print(" region velocity is : ", region_vel)
 
@@ -417,13 +425,7 @@ def run(sequence_dir, detection_file, output_file, min_confidence,
         # exit(0)
         # get_mean_squared_error(pairs, detections, frame_idx)
         # Update visualization.
-        if display:
-            image = cv2.imread(
-                seq_info["image_filenames"][frame_idx], cv2.IMREAD_COLOR)
-            vis.set_image(image.copy())
-            vis.draw_detections(detections)
-            vis.draw_trackers(tracker.tracks)
-
+        
         # Store results.
         temp_res = []
         for track in tracker.tracks:
@@ -433,15 +435,25 @@ def run(sequence_dir, detection_file, output_file, min_confidence,
             temp_res.append([frame_idx, track.track_id, bbox[0], bbox[1], bbox[2], bbox[3]])
             results.append([frame_idx, track.track_id, bbox[0], bbox[1], bbox[2], bbox[3]])
         # print("result is :", results)
-        get_jammed_widgets(pairs, temp_res)
+        # get_jammed_widgets(pairs, temp_res)
         # get_region_velocities(pairs, temp_res)
         
         if len(prev_frame_stats)==0:
             prev_frame_stats = frame_stats(pairs, temp_res, points)
+            region_vel = {}
         else:
             curr_frame_stats = frame_stats(pairs, temp_res, points)
-            # region_vel = get_region_velocities(prev_frame_stats, curr_frame_stats)
+            region_vel = get_region_velocities(prev_frame_stats, curr_frame_stats)
             prev_frame_stats = curr_frame_stats
+        if display:
+            image = cv2.imread(
+                seq_info["image_filenames"][frame_idx], cv2.IMREAD_COLOR)
+            vis.set_image(image.copy())
+            # vis.draw_detections(detections)
+            if region_vel !={} :
+                vis.draw_velocities(region_vel, points)
+            vis.draw_trackers(tracker.tracks)
+
         # exit(0)
     # Run tracker.output_file
     if display:

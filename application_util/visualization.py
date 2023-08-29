@@ -143,9 +143,9 @@ class Visualization(object):
             data = json.load(json_file)
         x_poly, y_poly = [], []
         points = []
-        for i in range(len(data['00004.png630994']['regions'])):
-            x_points =  data['00004.png630994']['regions'][i]['shape_attributes']['all_points_x']
-            y_points = data['00004.png630994']['regions'][i]['shape_attributes']['all_points_y']
+        for i in range(len(data['frame_0000.jpg132441']['regions'])):
+            x_points =  data['frame_0000.jpg132441']['regions'][i]['shape_attributes']['all_points_x']
+            y_points = data['frame_0000.jpg132441']['regions'][i]['shape_attributes']['all_points_y']
             # x_poly.append(x_points)
             # y_poly.append(y_points)
             polygon = []
@@ -185,6 +185,13 @@ class Visualization(object):
         for i, detection in enumerate(detections):
             # print("detection is :",detection.tlwh)
             self.viewer.rectangle(*detection.tlwh)
+
+    def draw_velocities(self, region_vel, points):
+        self.viewer.thinkness = 1
+        self.viewer.color = 0, 0, 0
+        self.viewer.velocity(region_vel, points)
+        # for keys in curr_frame_polygons:
+        
 
     def draw_trackers(self, tracks):
         self.viewer.thickness = 1

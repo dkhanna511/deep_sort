@@ -5,7 +5,8 @@ This module contains an image viewer and drawing routines based on OpenCV.
 import numpy as np
 import cv2
 import time
-
+from shapely.geometry import Point, mapping
+from shapely.geometry.polygon import Polygon
 
 def is_in_bounds(mat, roi):
     """Check if ROI is fully contained in the image.
@@ -120,6 +121,15 @@ class ImageViewer(object):
         if len(value) != 3:
             raise ValueError("color must be tuple of 3")
         self._color = tuple(int(c) for c in value)
+    def velocity(self, region_vel, points):
+        for i in range(0, len(points)):
+            polygon = Polygon(points[i])
+            centroid = mapping(polygon.centroid)
+            xx, yy = centroid['coordinates']
+            pts = np.array(points[i])
+            # print("pts are :", pts)
+            pts = pts.reshape((-1, 1, 2))
+            cv2.putText(self.image, str(region_vel[i]["velocity"])+"p/s", (int(xx)+5, int(yy)+5), cv2.FONT_HERSHEY_PLAIN,1, (0, 0, 0),2 )
 
     def rectangle(self, x, y, w, h, label=None):
         """Draw a rectangle.
