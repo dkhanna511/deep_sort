@@ -159,6 +159,18 @@ def create_detections(detection_mat, frame_idx, min_height=0):
         detection_list.append(Detection(bbox, confidence, feature))
     return detection_list
 
+
+def get_velocity_data_structure(points):
+    # for i in range(len(points)):
+        # print(points[i])
+    pairs = {}
+    for i in range(len(points)):
+        pairs[i] = {"length" : len(points[i]), "points": points[i], "objects_encountered" : [],"object_positions" : [], "object_time": None}
+        
+    # print(pairs)
+    return pairs
+    
+
 def get_polygons(points):
     for i in range(len(points)):
         print(points[i])
@@ -178,7 +190,7 @@ def get_polygons(points):
                 max_y = tuple[0]
         if max_x - min_x > max_y - min_y:
             print(" maxx and minx are : {}, {}".format(max_x, min_x))
-            pairs[i] = {"length" : len(points[i]), "points": points[i], "max_distance" : max_x - min_x, "objects_encountered":[] }
+            pairs[i] = {"length" : len(points[i]), "points": points[i], "max_distance" : max_x - min_x, "objects_encountered" : [],}
         
         if max_y - min_y > max_x - min_x:
             pairs[i] = {"length" : len(points[i]), "points": points[i], "max_distance" : max_y - min_y, "objects_encountered" : []}
@@ -186,6 +198,8 @@ def get_polygons(points):
     return pairs
     
 # exit(0)
+global prev_frame_stats
+prev_frame_stats = {}
 
 def get_empty_pair_grid(xs, ys):
     count = 0
@@ -246,12 +260,91 @@ def run(sequence_dir, detection_file, output_file, min_confidence,
     # pairs = get_empty_pair_grid(xs, ys)
     pairs = get_polygons(points)
 
+    global counter
+    counter = 0
+
+    instantaneous_velocity = {}
+
+
+    def frame_stats(pairs, results, points):
+
+        regions = get_velocity_data_structure(points)
+        for keys in pairs:
+            object_id_list = []
+            object_position_list = []
+            object_id_time = 0
+            
+            for j in range(len(results)):
+                point_tl, point_br = Point(results[j][2], results[j][3]), Point(results[j][2] + results[j][4], results[j][3]+results[j][5]) 
+                region = Polygon(pairs[keys]["points"])
+                
+                # if (results[j][2] > pairs[i][0][0]) and (results[j][3] >  pairs[i][0][1]) and  (results[j][2] + results[j][4] < pairs[i][1][0]) and (results[j][3] + results[j][5] < pairs[i][1][1]):
+                if region.contains(point_tl) and region.contains(point_br):
+                    object_id_list.append(results[j][1])
+                    object_position_list.append((results[j][2]+results[j][4]/2, results[j][3] + results[j][5]/2))
+                    object_id_time = time.time()
+        
+            if len(object_id_list) > 0:
+                regions[keys]["objects_encountered"].extend(object_id_list)
+                regions[keys]["object_positions"].extend(object_position_list)
+                regions[keys]["object_time"] = object_id_time
+                # print(regions[keys])
+                # continue
+        # exit(0)
+
+        # print("regions are : ",regions)
+        return regions
+
+        
+    def get_region_velocities(prev_frame_stats, curr_frame_stats):
+        
+
+        # print(" previous frame stats : ", prev_frame_stats)
+        # print("curfrent frame stats : ", curr_frame_stats)
+        region_vel = {}
+        for keys in curr_frame_stats:
+            # print(keys)
+            # print(" previous frames encountered : ", prev_frame_stats[keys]["objects_encountered"])
+            
+            matching_ids = np.intersect1d(curr_frame_stats[keys]["objects_encountered"], prev_frame_stats[keys]["objects_encountered"])
+            
+            list1_array = np.array(prev_frame_stats[keys]["objects_encountered"])
+            list2_array = np.array(curr_frame_stats[keys]["objects_encountered"])
+            matching_indices = np.where(np.isin(list1_array, list2_array))[0]
+            matching_ids_copy = list1_array[matching_indices]
+            # matching_ids_copy = prev_frame_stats[matching_indices]
+            indexes = []
+            # print(" matching ids are {} and {}".format(matching_ids, matching_ids_copy))
+            matching_id_copy  = matching_ids_copy.tolist()
+            for index, num in enumerate(matching_ids_copy):
+                # print(" num is : ", num)
+                for i, value in enumerate(curr_frame_stats[keys]["objects_encountered"]):
+                    # print(" value is : {} and i is : {}".format(value, i))
+                    if value == num:
+                        # indexes.append(i)
+                        # print(" here")
+                        id_displacement = np.sqrt((curr_frame_stats[keys]["object_positions"][i][0] - prev_frame_stats[keys]["object_positions"][index][0])**2 + 
+                                                  (curr_frame_stats[keys]["object_positions"][i][1] - prev_frame_stats[keys]["object_positions"][index][1])**2)
+                        time_taken = curr_frame_stats[keys]["object_time"] - prev_frame_stats[keys]["object_time"]
+                        instant_velocity = id_displacement / time_taken
+                        region_vel[keys] = {"velocity" : instant_velocity}
+                        break
+        
+        print(" region velocity is : ", region_vel)
+
+        return region_vel
+
+            
+            
+
+
+
     def get_jammed_widgets(pairs, results):
         
         # mean_square_list = []
         # print(" length of results is : ", len(results))
         # exit(0)
-        frames_grid_before = []
+        # frames_grid_before = []
         for keys in pairs:
                 # print(" x is : {} and y is : {}".format(pairs[i][0], pairs[i][1]))
             # print(" keys are :", keys)
@@ -267,15 +360,15 @@ def run(sequence_dir, detection_file, output_file, min_confidence,
                 # print(" i is :",i)
                 # exit(0)
                 # print(" pair[i] is : ", pairs[i])
-                # print(" frames grid after are :", frames_grid_after)    
+                    
             if len(frames_grid_after) > 0:  
                 # print(" yeah reaching here and this is working fine")   
                 # print(pairs[keys]["objects_encountered"])
                 pairs[keys]["objects_encountered"].append(frames_grid_after)    
             # pairs[i].append("hello")
             
-            if len(frames_grid_before) == 0:
-                frames_grid_before = frames_grid_after
+            # if len(frames_grid_before) == 0:
+            #     frames_grid_before = frames_grid_after
             # frames_grid_before_np = np.asarray(frames_grid_before)
             frames_grid_after_np = np.asarray(frames_grid_after)
 
@@ -293,7 +386,7 @@ def run(sequence_dir, detection_file, output_file, min_confidence,
                     if len(matching_ids)/len(frames_grid_after_np)> 0.9:
                         print(" {} widgets jammed at grid : {}".format(len(matching_ids), keys+1))
                         # time.sleep(1)
-            frames_grid_before = frames_grid_after
+            # frames_grid_before = frames_grid_after
             
         # print(" pair is : ", pairs)
         # time.sleep(2)
@@ -303,6 +396,7 @@ def run(sequence_dir, detection_file, output_file, min_confidence,
     def frame_callback(vis, frame_idx):
         print("Processing frame %05d" % frame_idx)
         frames_grid_before = []
+        global prev_frame_stats
         # Load image and generate detections.
         detections = create_detections(
             seq_info["detections"], frame_idx, min_detection_height)
@@ -342,6 +436,12 @@ def run(sequence_dir, detection_file, output_file, min_confidence,
         get_jammed_widgets(pairs, temp_res)
         # get_region_velocities(pairs, temp_res)
         
+        if len(prev_frame_stats)==0:
+            prev_frame_stats = frame_stats(pairs, temp_res, points)
+        else:
+            curr_frame_stats = frame_stats(pairs, temp_res, points)
+            # region_vel = get_region_velocities(prev_frame_stats, curr_frame_stats)
+            prev_frame_stats = curr_frame_stats
         # exit(0)
     # Run tracker.output_file
     if display:
