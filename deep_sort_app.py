@@ -19,7 +19,7 @@ import json
 from shapely.geometry import Point
 from shapely.geometry.polygon import Polygon
 
-json_file_path = "/media/dheeraj/New_Volume/Waterloo-Work/Research_Work/ATS_WORK/deep_sort/bowl_data_15_20_titan.json"
+json_file_path = "./bowl_data_15_20_titan.json"
 with open(json_file_path, "r") as json_file:
     data = json.load(json_file)
 points = []
@@ -160,14 +160,29 @@ def create_detections(detection_mat, frame_idx, min_height=0):
     return detection_list
 
 def get_polygons(points):
-
-    pairs = {}
-    
     for i in range(len(points)):
-        # print(" points[{}] : {}".format(i, points[i]))
-        pairs[i] = [len(points[i])]
-        pairs[i].append(points[i]) 
-    # print(pairs)
+        print(points[i])
+    pairs = {}
+    for i in range(len(points)):
+        min_x, min_y, max_x, max_y = 10000, 10000, 0, 0
+        for tuple in points[i]:
+            # print("points[i]", tuple)
+            # exit(0)
+            if tuple[0] < min_x:
+                min_x = tuple[0]
+            if tuple[1] < min_y:
+                min_y = tuple[1]
+            if tuple[0] > max_x:
+                max_x = tuple[0]
+            if tuple[1] > max_y:
+                max_y = tuple[0]
+        if max_x - min_x > max_y - min_y:
+            print(" maxx and minx are : {}, {}".format(max_x, min_x))
+            pairs[i] = {"length" : len(points[i]), "points": points[i], "max_distance" : max_x - min_x, "objects_encountered":[] }
+        
+        if max_y - min_y > max_x - min_x:
+            pairs[i] = {"length" : len(points[i]), "points": points[i], "max_distance" : max_y - min_y, "objects_encountered" : []}
+    print(pairs)
     return pairs
     
 # exit(0)
@@ -223,9 +238,6 @@ def run(sequence_dir, detection_file, output_file, min_confidence,
     print("metric : ", metric)
     tracker = Tracker(metric)
     results = []
-    frames_grid_before = []
-    overall_grid_after = []
-    # frames_grid_after = []
     pairs = {}
     # print("pairs are : ", pairs)
     # exit(0)
@@ -234,25 +246,19 @@ def run(sequence_dir, detection_file, output_file, min_confidence,
     # pairs = get_empty_pair_grid(xs, ys)
     pairs = get_polygons(points)
 
-    overall_grid_after = []
-    def get_mean_squared_error(pairs, results, frames_grid_before):
+    def get_jammed_widgets(pairs, results):
         
         # mean_square_list = []
         # print(" length of results is : ", len(results))
         # exit(0)
-        for i in range(1, len(pairs)):
+        frames_grid_before = []
+        for keys in pairs:
                 # print(" x is : {} and y is : {}".format(pairs[i][0], pairs[i][1]))
+            # print(" keys are :", keys)
             frames_grid_after = []
             for j in range(len(results)):
                 point_tl, point_br = Point(results[j][2], results[j][3]), Point(results[j][2] + results[j][4], results[j][3]+results[j][5]) 
-                # print(detection.tlwh[0])
-                # print(" pairs is : ", pairs[i])
-                # exit(0)
-                # print(" results are : ", results[j])
-                # print("points_tl is :", point_tl)
-                region = Polygon(pairs[i][1])
-                # print("region is:", region)
-                # print(" point is: ", point_tl, "   ", point_br)
+                region = Polygon(pairs[keys]["points"])
                 
                 
                 # if (results[j][2] > pairs[i][0][0]) and (results[j][3] >  pairs[i][0][1]) and  (results[j][2] + results[j][4] < pairs[i][1][0]) and (results[j][3] + results[j][5] < pairs[i][1][1]):
@@ -262,25 +268,22 @@ def run(sequence_dir, detection_file, output_file, min_confidence,
                 # exit(0)
                 # print(" pair[i] is : ", pairs[i])
                 # print(" frames grid after are :", frames_grid_after)    
-            if len(frames_grid_after) > 0:     
-                pairs[i].append(frames_grid_after)    
+            if len(frames_grid_after) > 0:  
+                # print(" yeah reaching here and this is working fine")   
+                # print(pairs[keys]["objects_encountered"])
+                pairs[keys]["objects_encountered"].append(frames_grid_after)    
             # pairs[i].append("hello")
-                
+            
             if len(frames_grid_before) == 0:
                 frames_grid_before = frames_grid_after
-            frames_grid_before_np = np.asarray(frames_grid_before)
+            # frames_grid_before_np = np.asarray(frames_grid_before)
             frames_grid_after_np = np.asarray(frames_grid_after)
 
-            
-            # print(" grid after is : ", frames_grid_after)
-            # print("grid before is : ", frames_grid_before
-            # overall_grid_after.append()
-
-            # print(" length of pairs is :", len(pairs[i]))
-            if len(pairs[i]) > 100:
+                        # print(" length of pairs is :", pairs[keys]["objects_encountered"])
+            if len(pairs[keys]["objects_encountered"]) > 100:
                 # print(" prev objects are : ", pairs[i][len(pairs[i])-27])
                 # print(" current objects are : ", frames_grid_after)
-                matching_ids = np.intersect1d(pairs[i][len(pairs[i]) - 97], frames_grid_after_np)
+                matching_ids = np.intersect1d(pairs[keys]["objects_encountered"], frames_grid_after_np)
                 # print("matching ids are :", matching_ids)
                 # exit(0)
                 # pairs[i-8] = []
@@ -288,7 +291,7 @@ def run(sequence_dir, detection_file, output_file, min_confidence,
                 if len(matching_ids) > 0:
                     # print("matching ids are : ", matching_ids)
                     if len(matching_ids)/len(frames_grid_after_np)> 0.9:
-                        print(" {} widgets jammed at grid : {}".format(len(matching_ids), i+1))
+                        print(" {} widgets jammed at grid : {}".format(len(matching_ids), keys+1))
                         # time.sleep(1)
             frames_grid_before = frames_grid_after
             
@@ -297,9 +300,6 @@ def run(sequence_dir, detection_file, output_file, min_confidence,
             
 
             # print(" pair is : {}, and matching ids are : {}".format(pairs[i], frames_grid_after[matching_ids]))
-
-        
-         
     def frame_callback(vis, frame_idx):
         print("Processing frame %05d" % frame_idx)
         frames_grid_before = []
@@ -339,8 +339,9 @@ def run(sequence_dir, detection_file, output_file, min_confidence,
             temp_res.append([frame_idx, track.track_id, bbox[0], bbox[1], bbox[2], bbox[3]])
             results.append([frame_idx, track.track_id, bbox[0], bbox[1], bbox[2], bbox[3]])
         # print("result is :", results)
-        get_mean_squared_error(pairs, temp_res, frames_grid_before)
-       
+        get_jammed_widgets(pairs, temp_res)
+        # get_region_velocities(pairs, temp_res)
+        
         # exit(0)
     # Run tracker.output_file
     if display:

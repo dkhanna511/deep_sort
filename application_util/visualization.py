@@ -137,7 +137,7 @@ class Visualization(object):
         #     y += self.pixel_step
 
 
-        json_file_path = "/media/dheeraj/New_Volume/Waterloo-Work/Research_Work/ATS_WORK/deep_sort/bowl_data_15_20_titan.json"
+        json_file_path = "./bowl_data_15_20_titan.json"
         # print("annotation json")
         with open(json_file_path, "r") as json_file:
             data = json.load(json_file)
