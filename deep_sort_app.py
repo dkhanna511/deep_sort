@@ -3,6 +3,8 @@ from __future__ import division, print_function, absolute_import
 
 import argparse
 import os
+from shapely.geometry import Point
+from shapely.geometry.polygon import Polygon
 
 import cv2
 import numpy as np
@@ -12,7 +14,30 @@ from application_util import visualization
 from deep_sort import nn_matching
 from deep_sort.detection import Detection
 from deep_sort.tracker import Tracker
+import time
+import json
+from shapely.geometry import Point
+from shapely.geometry.polygon import Polygon
 
+json_file_path = "/media/dheeraj/New_Volume/Waterloo-Work/Research_Work/ATS_WORK/deep_sort/bowl_data_15_20_titan.json"
+with open(json_file_path, "r") as json_file:
+    data = json.load(json_file)
+points = []
+for i in range(1, len(data['00004.png630994']['regions'])):
+    x_points =  data['00004.png630994']['regions'][i]['shape_attributes']['all_points_x']
+    y_points = data['00004.png630994']['regions'][i]['shape_attributes']['all_points_y']
+    # x_poly.append(x_points)
+    # y_poly.append(y_points)
+    polygon = []
+    for j in range(len(x_points)):
+        polygon.append((x_points[j], y_points[j]))
+    # print("opolygon is : ", polygon)
+    # polygon = Polygon(polygon)
+    # print(" polygon is :", polygon)
+    
+    points.append(polygon)
+
+# exit(0)
 
 def gather_sequence_info(sequence_dir, detection_file):
     """Gather sequence information, such as image filenames, detections,
@@ -115,15 +140,50 @@ def create_detections(detection_mat, frame_idx, min_height=0):
 
     """
     frame_indices = detection_mat[:, 0].astype(np.int)
+    # print("frame indices is : ", frame_indices)
+    # exit(0)
     mask = frame_indices == frame_idx
-
+    # print("mask indices is : ", mask[:175])
+    # exit(0)
     detection_list = []
+    # print(" length of detection[mask] is : ", len(detection_mat[mask]))
+    # exit(0)
     for row in detection_mat[mask]:
+        # print("row is ", len(row))
         bbox, confidence, feature = row[2:6], row[6], row[10:]
+        # print(" shape of bounding box : {}, confidence is : {}, feature is : {}".format(bbox.shape, confidence.shape, feature.shape))
+        # print("bbox is : ", bbox)
+        
         if bbox[3] < min_height:
             continue
         detection_list.append(Detection(bbox, confidence, feature))
     return detection_list
+
+def get_polygons(points):
+
+    pairs = {}
+    
+    for i in range(len(points)):
+        # print(" points[{}] : {}".format(i, points[i]))
+        pairs[i] = [len(points[i])]
+        pairs[i].append(points[i]) 
+    # print(pairs)
+    return pairs
+    
+# exit(0)
+
+def get_empty_pair_grid(xs, ys):
+    count = 0
+    pairs = {}
+    grid_width, grid_height = 100, 100
+
+    for i in xs:
+        for j in ys:
+            pairs[count] = ([(i, j), (i + grid_width, j + grid_height)])
+            count +=1
+
+    return pairs
+
 
 
 def run(sequence_dir, detection_file, output_file, min_confidence,
@@ -158,30 +218,110 @@ def run(sequence_dir, detection_file, output_file, min_confidence,
 
     """
     seq_info = gather_sequence_info(sequence_dir, detection_file)
-    metric = nn_matching.NearestNeighborDistanceMetric(
-        "cosine", max_cosine_distance, nn_budget)
+    print("seq info is : ", seq_info)
+    metric = nn_matching.NearestNeighborDistanceMetric("cosine", max_cosine_distance, nn_budget)
+    print("metric : ", metric)
     tracker = Tracker(metric)
     results = []
+    frames_grid_before = []
+    overall_grid_after = []
+    # frames_grid_after = []
+    pairs = {}
+    # print("pairs are : ", pairs)
+    # exit(0)
+    xs = np.linspace(0, 400, num = 5)
+    ys = np.linspace(0, 400, num = 5)
+    # pairs = get_empty_pair_grid(xs, ys)
+    pairs = get_polygons(points)
 
+    overall_grid_after = []
+    def get_mean_squared_error(pairs, results, frames_grid_before):
+        
+        # mean_square_list = []
+        # print(" length of results is : ", len(results))
+        # exit(0)
+        for i in range(1, len(pairs)):
+                # print(" x is : {} and y is : {}".format(pairs[i][0], pairs[i][1]))
+            frames_grid_after = []
+            for j in range(len(results)):
+                point_tl, point_br = Point(results[j][2], results[j][3]), Point(results[j][2] + results[j][4], results[j][3]+results[j][5]) 
+                # print(detection.tlwh[0])
+                # print(" pairs is : ", pairs[i])
+                # exit(0)
+                # print(" results are : ", results[j])
+                # print("points_tl is :", point_tl)
+                region = Polygon(pairs[i][1])
+                # print("region is:", region)
+                # print(" point is: ", point_tl, "   ", point_br)
+                
+                
+                # if (results[j][2] > pairs[i][0][0]) and (results[j][3] >  pairs[i][0][1]) and  (results[j][2] + results[j][4] < pairs[i][1][0]) and (results[j][3] + results[j][5] < pairs[i][1][1]):
+                if region.contains(point_tl) and region.contains(point_br):
+                    frames_grid_after.append(results[j][1])
+                # print(" i is :",i)
+                # exit(0)
+                # print(" pair[i] is : ", pairs[i])
+                # print(" frames grid after are :", frames_grid_after)    
+            if len(frames_grid_after) > 0:     
+                pairs[i].append(frames_grid_after)    
+            # pairs[i].append("hello")
+                
+            if len(frames_grid_before) == 0:
+                frames_grid_before = frames_grid_after
+            frames_grid_before_np = np.asarray(frames_grid_before)
+            frames_grid_after_np = np.asarray(frames_grid_after)
+
+            
+            # print(" grid after is : ", frames_grid_after)
+            # print("grid before is : ", frames_grid_before
+            # overall_grid_after.append()
+
+            # print(" length of pairs is :", len(pairs[i]))
+            if len(pairs[i]) > 100:
+                # print(" prev objects are : ", pairs[i][len(pairs[i])-27])
+                # print(" current objects are : ", frames_grid_after)
+                matching_ids = np.intersect1d(pairs[i][len(pairs[i]) - 97], frames_grid_after_np)
+                # print("matching ids are :", matching_ids)
+                # exit(0)
+                # pairs[i-8] = []
+                # pairs = get_empty_pair_grid(xs, ys)
+                if len(matching_ids) > 0:
+                    # print("matching ids are : ", matching_ids)
+                    if len(matching_ids)/len(frames_grid_after_np)> 0.9:
+                        print(" {} widgets jammed at grid : {}".format(len(matching_ids), i+1))
+                        # time.sleep(1)
+            frames_grid_before = frames_grid_after
+            
+        # print(" pair is : ", pairs)
+        # time.sleep(2)
+            
+
+            # print(" pair is : {}, and matching ids are : {}".format(pairs[i], frames_grid_after[matching_ids]))
+
+        
+         
     def frame_callback(vis, frame_idx):
         print("Processing frame %05d" % frame_idx)
-
+        frames_grid_before = []
         # Load image and generate detections.
         detections = create_detections(
             seq_info["detections"], frame_idx, min_detection_height)
         detections = [d for d in detections if d.confidence >= min_confidence]
-
+        # print(" length of detections is : ", len(detections))
         # Run non-maxima suppression.
         boxes = np.array([d.tlwh for d in detections])
         scores = np.array([d.confidence for d in detections])
         indices = preprocessing.non_max_suppression(
             boxes, nms_max_overlap, scores)
         detections = [detections[i] for i in indices]
-
+        # print(" detections are :", detections)
         # Update tracker.
         tracker.predict()
         tracker.update(detections)
-
+        
+        # print("shape of tracker is :", len(tracker.tracks))
+        # exit(0)
+        # get_mean_squared_error(pairs, detections, frame_idx)
         # Update visualization.
         if display:
             image = cv2.imread(
@@ -191,16 +331,20 @@ def run(sequence_dir, detection_file, output_file, min_confidence,
             vis.draw_trackers(tracker.tracks)
 
         # Store results.
+        temp_res = []
         for track in tracker.tracks:
             if not track.is_confirmed() or track.time_since_update > 1:
                 continue
             bbox = track.to_tlwh()
-            results.append([
-                frame_idx, track.track_id, bbox[0], bbox[1], bbox[2], bbox[3]])
-
-    # Run tracker.
+            temp_res.append([frame_idx, track.track_id, bbox[0], bbox[1], bbox[2], bbox[3]])
+            results.append([frame_idx, track.track_id, bbox[0], bbox[1], bbox[2], bbox[3]])
+        # print("result is :", results)
+        get_mean_squared_error(pairs, temp_res, frames_grid_before)
+       
+        # exit(0)
+    # Run tracker.output_file
     if display:
-        visualizer = visualization.Visualization(seq_info, update_ms=5)
+        visualizer = visualization.Visualization(seq_info, update_ms=1)
     else:
         visualizer = visualization.NoVisualization(seq_info)
     visualizer.run(frame_callback)
@@ -217,7 +361,6 @@ def bool_string(input_string):
         raise ValueError("Please Enter a valid Ture/False choice")
     else:
         return (input_string == "True")
-
 def parse_args():
     """ Parse command line arguments.
     """
@@ -231,7 +374,7 @@ def parse_args():
     parser.add_argument(
         "--output_file", help="Path to the tracking output file. This file will"
         " contain the tracking results on completion.",
-        default="/tmp/hypotheses.txt")
+        default="hypotheses.txt")
     parser.add_argument(
         "--min_confidence", help="Detection confidence threshold. Disregard "
         "all detections that have a confidence lower than this value.",
@@ -245,7 +388,7 @@ def parse_args():
         "detection overlap.", default=1.0, type=float)
     parser.add_argument(
         "--max_cosine_distance", help="Gating threshold for cosine distance "
-        "metric (object appearance).", type=float, default=0.2)
+        "metric (object appearance).", type=float, default=0.5)
     parser.add_argument(
         "--nn_budget", help="Maximum size of the appearance descriptors "
         "gallery. If None, no budget is enforced.", type=int, default=None)

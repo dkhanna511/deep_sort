@@ -1,9 +1,12 @@
 # vim: expandtab:ts=4:sw=4
 import numpy as np
 import colorsys
+import cv2
 from .image_viewer import ImageViewer
+import json
 
-
+from shapely.geometry import Point, mapping
+from shapely.geometry.polygon import Polygon
 def create_unique_color_float(tag, hue_step=0.41):
     """Create a unique RGB color code for a given track id (tag).
 
@@ -92,7 +95,9 @@ class Visualization(object):
         image_shape = 1024, int(aspect_ratio * 1024)
         self.viewer = ImageViewer(
             update_ms, image_shape, "Figure %s" % seq_info["sequence_name"])
-        self.viewer.thickness = 2
+        self.viewer.thickness = 1
+        self.line_color = (0, 255, 0)
+        self.pixel_step = 100
         self.frame_idx = seq_info["min_frame_idx"]
         self.last_idx = seq_info["max_frame_idx"]
 
@@ -105,30 +110,90 @@ class Visualization(object):
         frame_callback(self, self.frame_idx)
         self.frame_idx += 1
         return True
-
+    
+        
     def set_image(self, image):
         self.viewer.image = image
+        # x = self.pixel_step
+        # y = self.pixel_step
 
+        # grid_xs = np.linspace(0, 400, num = 5)
+        # grid_ys = np.linspace(0, 400, num = 5)
+        # count = 0
+        # dictionary = {}
+        # for i in grid_xs:
+        #     for j in grid_ys:
+        #         # print(count)
+        #         # strrr = str(i) + "," + str(j)
+        #         cv2.putText(image, str(count), (int(i) +  x/2, int(j)+ y/2), cv2.FONT_HERSHEY_PLAIN,2, (0, 255, 0),1 )
+        #         count +=1
+                
+        # while x < image.shape[1]:
+        #     cv2.line(image, (x, 0), (x, image.shape[0]), color=self.line_color, lineType=cv2.LINE_AA, thickness=self.viewer.thickness)
+        #     x += self.pixel_step
+
+        # while y < image.shape[0]:
+        #     cv2.line(image, (0, y), (image.shape[1], y), color=self.line_color, lineType=cv2.LINE_AA, thickness=self.viewer.thickness)
+        #     y += self.pixel_step
+
+
+        json_file_path = "/media/dheeraj/New_Volume/Waterloo-Work/Research_Work/ATS_WORK/deep_sort/bowl_data_15_20_titan.json"
+        # print("annotation json")
+        with open(json_file_path, "r") as json_file:
+            data = json.load(json_file)
+        x_poly, y_poly = [], []
+        points = []
+        for i in range(len(data['00004.png630994']['regions'])):
+            x_points =  data['00004.png630994']['regions'][i]['shape_attributes']['all_points_x']
+            y_points = data['00004.png630994']['regions'][i]['shape_attributes']['all_points_y']
+            # x_poly.append(x_points)
+            # y_poly.append(y_points)
+            polygon = []
+            for j in range(len(x_points)):
+                polygon.append([x_points[j], y_points[j]])
+            # print(" polygon is :", polygon)
+            points.append(polygon)
+
+       
+        # Attributes
+        isClosed = True
+        color = (255, 0, 0)
+        thickness = 2
+
+        # draw closed polyline
+        for i in range(1, len(points)):
+            polygon = Polygon(points[i])
+            centroid = mapping(polygon.centroid)
+            xx, yy = centroid['coordinates']
+            pts = np.array(points[i])
+            # print("pts are :", pts)
+            pts = pts.reshape((-1, 1, 2))
+            cv2.putText(image, str(i), (int(xx), int(yy)), cv2.FONT_HERSHEY_PLAIN,1, (0, 255, 0),2 )
+
+            cv2.polylines(image, [pts], isClosed, color, thickness)
+
+            
     def draw_groundtruth(self, track_ids, boxes):
         self.viewer.thickness = 2
-        for track_id, box in zip(track_ids, boxes):
-            self.viewer.color = create_unique_color_uchar(track_id)
-            self.viewer.rectangle(*box.astype(np.int), label=str(track_id))
-
+        # for track_id, box in zip(track_ids, boxes):
+            # self.viewer.color = create_unique_color_uchar(track_id)
+            # self.viewer.rectangle(*box.astype(np.int), label=str(track_id))
+# 
     def draw_detections(self, detections):
-        self.viewer.thickness = 2
+        self.viewer.thickness = 1
         self.viewer.color = 0, 0, 255
         for i, detection in enumerate(detections):
+            # print("detection is :",detection.tlwh)
             self.viewer.rectangle(*detection.tlwh)
 
     def draw_trackers(self, tracks):
-        self.viewer.thickness = 2
-        for track in tracks:
-            if not track.is_confirmed() or track.time_since_update > 0:
-                continue
-            self.viewer.color = create_unique_color_uchar(track.track_id)
-            self.viewer.rectangle(
-                *track.to_tlwh().astype(np.int), label=str(track.track_id))
+        self.viewer.thickness = 1
+        # for track in tracks:
+        #     if not track.is_confirmed() or track.time_since_update > 0:
+        #         continue
+        #     self.viewer.color = create_unique_color_uchar(track.track_id)
+        #     self.viewer.rectangle(
+        #         *track.to_tlwh().astype(np.int), label=str(track.track_id))
             # self.viewer.gaussian(track.mean[:2], track.covariance[:2, :2],
             #                      label="%d" % track.track_id)
 #
