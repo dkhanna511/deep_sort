@@ -23,9 +23,9 @@ json_file_path = "./bowl_data_15_20_titan.json"
 with open(json_file_path, "r") as json_file:
     data = json.load(json_file)
 points = []
-for i in range(1, len(data['frame_0000.jpg132441']['regions'])):
-    x_points =  data['frame_0000.jpg132441']['regions'][i]['shape_attributes']['all_points_x']
-    y_points = data['frame_0000.jpg132441']['regions'][i]['shape_attributes']['all_points_y']
+for i in range(1, len(data['bowl_20']['regions'])):
+    x_points =  data['bowl_20']['regions'][i]['shape_attributes']['all_points_x']
+    y_points = data['bowl_20']['regions'][i]['shape_attributes']['all_points_y']
     # x_poly.append(x_points)
     # y_poly.append(y_points)
     polygon = []
@@ -449,7 +449,7 @@ def run(sequence_dir, detection_file, output_file, min_confidence,
             image = cv2.imread(
                 seq_info["image_filenames"][frame_idx], cv2.IMREAD_COLOR)
             vis.set_image(image.copy())
-            # vis.draw_detections(detections)
+            vis.draw_detections(detections)
             if region_vel !={} :
                 vis.draw_velocities(region_vel, points)
             vis.draw_trackers(tracker.tracks)

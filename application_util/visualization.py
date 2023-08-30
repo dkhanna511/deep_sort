@@ -116,7 +116,6 @@ class Visualization(object):
         self.viewer.image = image
         # x = self.pixel_step
         # y = self.pixel_step
-
         # grid_xs = np.linspace(0, 400, num = 5)
         # grid_ys = np.linspace(0, 400, num = 5)
         # count = 0
@@ -143,9 +142,9 @@ class Visualization(object):
             data = json.load(json_file)
         x_poly, y_poly = [], []
         points = []
-        for i in range(len(data['frame_0000.jpg132441']['regions'])):
-            x_points =  data['frame_0000.jpg132441']['regions'][i]['shape_attributes']['all_points_x']
-            y_points = data['frame_0000.jpg132441']['regions'][i]['shape_attributes']['all_points_y']
+        for i in range(len(data['bowl_20']['regions'])):
+            x_points =  data['bowl_20']['regions'][i]['shape_attributes']['all_points_x']
+            y_points = data['bowl_20']['regions'][i]['shape_attributes']['all_points_y']
             # x_poly.append(x_points)
             # y_poly.append(y_points)
             polygon = []
@@ -171,6 +170,8 @@ class Visualization(object):
             cv2.putText(image, str(i), (int(xx), int(yy)), cv2.FONT_HERSHEY_PLAIN,1, (0, 255, 0),2 )
 
             cv2.polylines(image, [pts], isClosed, color, thickness)
+
+        cv2.putText(image, "image dim: {}, {}".format(image.shape[0], image.shape[1]), (10, 20), cv2.FONT_HERSHEY_SIMPLEX,0.7, (255, 255, 0),2 )
 
             
     def draw_groundtruth(self, track_ids, boxes):

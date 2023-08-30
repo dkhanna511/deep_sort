@@ -122,7 +122,7 @@ class ImageViewer(object):
             raise ValueError("color must be tuple of 3")
         self._color = tuple(int(c) for c in value)
     def velocity(self, region_vel, points):
-        for i in range(0, len(points)):
+        for i in range(1, len(points)):
             polygon = Polygon(points[i])
             centroid = mapping(polygon.centroid)
             xx, yy = centroid['coordinates']
