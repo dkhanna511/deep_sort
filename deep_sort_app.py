@@ -18,6 +18,10 @@ import time
 import json
 from shapely.geometry import Point
 from shapely.geometry.polygon import Polygon
+import csv
+import pandas
+
+file = "averages_2sec_bowl_20.csv"
 
 json_file_path = "./bowl_data_15_20_titan.json"
 with open(json_file_path, "r") as json_file:
@@ -176,24 +180,9 @@ def get_polygons(points):
         print(points[i])
     pairs = {}
     for i in range(len(points)):
-        min_x, min_y, max_x, max_y = 10000, 10000, 0, 0
-        for tuple in points[i]:
-            # print("points[i]", tuple)
-            # exit(0)
-            if tuple[0] < min_x:
-                min_x = tuple[0]
-            if tuple[1] < min_y:
-                min_y = tuple[1]
-            if tuple[0] > max_x:
-                max_x = tuple[0]
-            if tuple[1] > max_y:
-                max_y = tuple[0]
-        if max_x - min_x > max_y - min_y:
-            print(" maxx and minx are : {}, {}".format(max_x, min_x))
-            pairs[i] = {"length" : len(points[i]), "points": points[i], "max_distance" : max_x - min_x, "objects_encountered" : [],}
+        pairs[i] = {"length" : len(points[i]), "points": points[i],  "objects_encountered" : []}
         
-        if max_y - min_y > max_x - min_x:
-            pairs[i] = {"length" : len(points[i]), "points": points[i], "max_distance" : max_y - min_y, "objects_encountered" : []}
+        
     print(pairs)
     return pairs
     
@@ -218,34 +207,6 @@ def get_empty_pair_grid(xs, ys):
 def run(sequence_dir, detection_file, output_file, min_confidence,
         nms_max_overlap, min_detection_height, max_cosine_distance,
         nn_budget, display):
-    """Run multi-target tracker on a particular sequence.
-
-    Parameters
-    ----------
-    sequence_dir : str
-        Path to the MOTChallenge sequence directory.
-    detection_file : str
-        Path to the detections file.
-    output_file : str
-        Path to the tracking output file. This file will contain the tracking
-        results on completion.
-    min_confidence : float
-        Detection confidence threshold. Disregard all detections that have
-        a confidence lower than this value.
-    nms_max_overlap: float
-        Maximum detection overlap (non-maxima suppression threshold).
-    min_detection_height : int
-        Detection height threshold. Disregard all detections that have
-        a height lower than this value.
-    max_cosine_distance : float
-        Gating threshold for cosine distance metric (object appearance).
-    nn_budget : Optional[int]
-        Maximum size of the appearance descriptor gallery. If None, no budget
-        is enforced.
-    display : bool
-        If True, show visualization of intermediate tracking results.
-
-    """
     seq_info = gather_sequence_info(sequence_dir, detection_file)
     print("seq info is : ", seq_info)
     metric = nn_matching.NearestNeighborDistanceMetric("cosine", max_cosine_distance, nn_budget)
@@ -295,16 +256,21 @@ def run(sequence_dir, detection_file, output_file, min_confidence,
         # print("regions are : ",regions)
         return regions
 
-        
+    frame_count = 0
+    # average_region_velocity = {}
+    # for keys in pairs:
+    #     average_region_velocity[keys] = {"velocity": 0.0}
+
+    
     def get_region_velocities(prev_frame_stats, curr_frame_stats):
-        
+        # global
 
         # print(" previous frame stats : ", prev_frame_stats)
         # print("curfrent frame stats : ", curr_frame_stats)
         region_vel = {}
 
         for keys in curr_frame_stats:
-            region_vel[keys] = {"velocity" : 0.0}
+            region_vel[keys] = {"velocity" : []}
 
         for keys in curr_frame_stats:
             # print(keys)
@@ -337,16 +303,14 @@ def run(sequence_dir, detection_file, output_file, min_confidence,
             if np.isnan(region_vel[keys]["velocity"]):
                 region_vel[keys]["velocity"] = 0.0
                     
-        
-        print(" region velocity is : ", region_vel)
+            # average_region_velocity[keys]["velocity"].extend(region_vel[keys]["velocity"])
+            # frame_count +=1
 
+        # print(" region velocity is : ", region_vel)
+        
         return region_vel
 
             
-            
-
-
-
     def get_jammed_widgets(pairs, results):
         
         # mean_square_list = []
@@ -402,6 +366,8 @@ def run(sequence_dir, detection_file, output_file, min_confidence,
 
             # print(" pair is : {}, and matching ids are : {}".format(pairs[i], frames_grid_after[matching_ids]))
     def frame_callback(vis, frame_idx):
+        global average_region_velocity
+
         print("Processing frame %05d" % frame_idx)
         frames_grid_before = []
         global prev_frame_stats
@@ -445,6 +411,9 @@ def run(sequence_dir, detection_file, output_file, min_confidence,
             curr_frame_stats = frame_stats(pairs, temp_res, points)
             region_vel = get_region_velocities(prev_frame_stats, curr_frame_stats)
             prev_frame_stats = curr_frame_stats
+
+        print(" region velocity : ", region_vel)
+        
         if display:
             image = cv2.imread(
                 seq_info["image_filenames"][frame_idx], cv2.IMREAD_COLOR)
