@@ -41,34 +41,17 @@ for i in range(1, len(data['bowl_20']['regions'])):
     
     points.append(polygon)
 
+
+global frame_count,  average_region_velocity, seconds
+global velocity_append
+average_region_velocity = {"sectors" : []}
+velocity_append = {}
+frame_count = 0
+seconds = 0
 # exit(0)
 
 def gather_sequence_info(sequence_dir, detection_file):
-    """Gather sequence information, such as image filenames, detections,
-    groundtruth (if available).
-
-    Parameters
-    ----------
-    sequence_dir : str
-        Path to the MOTChallenge sequence directory.
-    detection_file : str
-        Path to the detection file.
-
-    Returns
-    -------
-    Dict
-        A dictionary of the following sequence information:
-
-        * sequence_name: Name of the sequence
-        * image_filenames: A dictionary that maps frame indices to image
-          filenames.
-        * detections: A numpy array of detections in MOTChallenge format.
-        * groundtruth: A numpy array of ground truth in MOTChallenge format.
-        * image_size: Image size (height, width).
-        * min_frame_idx: Index of the first frame.
-        * max_frame_idx: Index of the last frame.
-
-    """
+    
     image_dir = os.path.join(sequence_dir, "img1")
     image_filenames = {
         int(os.path.splitext(f)[0]): os.path.join(image_dir, f)
@@ -123,26 +106,6 @@ def gather_sequence_info(sequence_dir, detection_file):
 
 
 def create_detections(detection_mat, frame_idx, min_height=0):
-    """Create detections for given frame index from the raw detection matrix.
-
-    Parameters
-    ----------
-    detection_mat : ndarray
-        Matrix of detections. The first 10 columns of the detection matrix are
-        in the standard MOTChallenge detection format. In the remaining columns
-        store the feature vector associated with each detection.
-    frame_idx : int
-        The frame index.
-    min_height : Optional[int]
-        A minimum detection bounding box height. Detections that are smaller
-        than this value are disregarded.
-
-    Returns
-    -------
-    List[tracker.Detection]
-        Returns detection responses at given frame index.
-
-    """
     frame_indices = detection_mat[:, 0].astype(np.int)
     # print("frame indices is : ", frame_indices)
     # exit(0)
@@ -183,7 +146,7 @@ def get_polygons(points):
         pairs[i] = {"length" : len(points[i]), "points": points[i],  "objects_encountered" : []}
         
         
-    print(pairs)
+    # print(pairs)
     return pairs
     
 # exit(0)
@@ -208,9 +171,9 @@ def run(sequence_dir, detection_file, output_file, min_confidence,
         nms_max_overlap, min_detection_height, max_cosine_distance,
         nn_budget, display):
     seq_info = gather_sequence_info(sequence_dir, detection_file)
-    print("seq info is : ", seq_info)
+    # print("seq info is : ", seq_info)
     metric = nn_matching.NearestNeighborDistanceMetric("cosine", max_cosine_distance, nn_budget)
-    print("metric : ", metric)
+    # print("metric : ", metric)
     tracker = Tracker(metric)
     results = []
     pairs = {}
@@ -221,12 +184,7 @@ def run(sequence_dir, detection_file, output_file, min_confidence,
     # pairs = get_empty_pair_grid(xs, ys)
     pairs = get_polygons(points)
 
-    global counter
-    counter = 0
-
-    instantaneous_velocity = {}
-
-
+    
     def frame_stats(pairs, results, points):
 
         regions = get_velocity_data_structure(points)
@@ -256,23 +214,32 @@ def run(sequence_dir, detection_file, output_file, min_confidence,
         # print("regions are : ",regions)
         return regions
 
-    frame_count = 0
-    # average_region_velocity = {}
-    # for keys in pairs:
-    #     average_region_velocity[keys] = {"velocity": 0.0}
+    for keys in pairs:
+        average_region_velocity["sectors"].append(keys)
+        # average_region_velocity["sectors"].append(keys)
+        velocity_append[keys] = {"velocity" : []}
+        for sec in range(0, 54, 2):
+            average_region_velocity["velocity_{}_{}".format(sec, sec+2)] =  []
+
 
     
-    def get_region_velocities(prev_frame_stats, curr_frame_stats):
-        # global
-
+    print("average_region velocity is : ", average_region_velocity)
+    # exit(0)
+    
+    def get_region_velocities(prev_frame_stats, curr_frame_stats, velocity_append, average_region_velocity, frame_idx, seconds):
+        # global frame_count
+        # global seconds
+        # global velocity_append
         # print(" previous frame stats : ", prev_frame_stats)
         # print("curfrent frame stats : ", curr_frame_stats)
         region_vel = {}
-
         for keys in curr_frame_stats:
             region_vel[keys] = {"velocity" : []}
-
+        # with open(filename, "w") as csvfile:
+        counter = 0
         for keys in curr_frame_stats:
+            counter +=1
+            # average_region_velocity["sector"] = keys
             # print(keys)
             # print(" previous frames encountered : ", prev_frame_stats[keys]["objects_encountered"])
             
@@ -294,7 +261,7 @@ def run(sequence_dir, detection_file, output_file, min_confidence,
                         # indexes.append(i)
                         # print(" here")
                         id_displacement = np.sqrt((curr_frame_stats[keys]["object_positions"][i][0] - prev_frame_stats[keys]["object_positions"][index][0])**2 + 
-                                                  (curr_frame_stats[keys]["object_positions"][i][1] - prev_frame_stats[keys]["object_positions"][index][1])**2)
+                                                (curr_frame_stats[keys]["object_positions"][i][1] - prev_frame_stats[keys]["object_positions"][index][1])**2)
                         time_taken = curr_frame_stats[keys]["object_time"] - prev_frame_stats[keys]["object_time"]
                         part_instant_velocity.append(id_displacement / time_taken)
                         break
@@ -302,13 +269,28 @@ def run(sequence_dir, detection_file, output_file, min_confidence,
             region_vel[keys]["velocity"]  =round(np.mean(part_instant_velocity), 4)
             if np.isnan(region_vel[keys]["velocity"]):
                 region_vel[keys]["velocity"] = 0.0
-                    
-            # average_region_velocity[keys]["velocity"].extend(region_vel[keys]["velocity"])
-            # frame_count +=1
+            velocity_append[keys]["velocity"].append(region_vel[keys]["velocity"])
+            # print("frame count is : ", frame_idx)
+            if frame_idx %int((300/52)*2) ==0:
+                
+                average_vel = np.mean(velocity_append[keys]["velocity"])
+                fieldnames = "velocity_{}_{}".format(seconds, seconds+2)
+                average_region_velocity[fieldnames].append(average_vel)
+                # writer = csv.DictWriter(csvfile, fieldnames=fieldnames)
+                print(" seconds are : ", seconds)
+                # velocity_append = {}
 
+                velocity_append[keys] = {"velocity" : []}
+                # frame_count +=1
+            
+        print("seconda are : ", seconds)
         # print(" region velocity is : ", region_vel)
-        
-        return region_vel
+        if frame_idx %int((300/52)*2) ==0:
+            seconds +=2
+            print("average region_velocity is : ", average_region_velocity)
+            
+              
+        return region_vel, average_region_velocity, velocity_append, seconds 
 
             
     def get_jammed_widgets(pairs, results):
@@ -366,7 +348,7 @@ def run(sequence_dir, detection_file, output_file, min_confidence,
 
             # print(" pair is : {}, and matching ids are : {}".format(pairs[i], frames_grid_after[matching_ids]))
     def frame_callback(vis, frame_idx):
-        global average_region_velocity
+        global average_region_velocity, frame_count, velocity_append, seconds
 
         print("Processing frame %05d" % frame_idx)
         frames_grid_before = []
@@ -409,10 +391,10 @@ def run(sequence_dir, detection_file, output_file, min_confidence,
             region_vel = {}
         else:
             curr_frame_stats = frame_stats(pairs, temp_res, points)
-            region_vel = get_region_velocities(prev_frame_stats, curr_frame_stats)
+            region_vel, average_region_velocity, velocity_append, seconds = get_region_velocities(prev_frame_stats, curr_frame_stats, velocity_append, average_region_velocity, frame_idx, seconds)
             prev_frame_stats = curr_frame_stats
 
-        print(" region velocity : ", region_vel)
+        # print(" region velocity : ", region_vel)
         
         if display:
             image = cv2.imread(
@@ -437,7 +419,20 @@ def run(sequence_dir, detection_file, output_file, min_confidence,
         print('%d,%d,%.2f,%.2f,%.2f,%.2f,1,-1,-1,-1' % (
             row[0], row[1], row[2], row[3], row[4], row[5]),file=f)
 
+    sorted_keys = sorted(average_region_velocity.keys())
 
+    # print("average region velocity is ", average_region_velocity)
+    with open("video_data_2.csv", "w") as csvfile:
+        fieldnames = sorted_keys
+        writer = csv.DictWriter(csvfile, fieldnames=fieldnames)
+    
+        writer.writeheader()
+        for i in range(len(average_region_velocity["sectors"])):
+            print(" i is : ", i)
+            print("sector is :", average_region_velocity["sectors"][i])
+            row = {field: average_region_velocity[field][i] for field in fieldnames}
+            print("row is :", row)
+            writer.writerow(row)
 def bool_string(input_string):
     if input_string not in {"True","False"}:
         raise ValueError("Please Enter a valid Ture/False choice")
