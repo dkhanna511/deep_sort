@@ -4,7 +4,7 @@ import colorsys
 import cv2
 from .image_viewer import ImageViewer
 import json
-
+import configs
 from shapely.geometry import Point, mapping
 from shapely.geometry.polygon import Polygon
 def create_unique_color_float(tag, hue_step=0.41):
@@ -142,9 +142,9 @@ class Visualization(object):
             data = json.load(json_file)
         x_poly, y_poly = [], []
         points = []
-        for i in range(len(data['bowl_20']['regions'])):
-            x_points =  data['bowl_20']['regions'][i]['shape_attributes']['all_points_x']
-            y_points = data['bowl_20']['regions'][i]['shape_attributes']['all_points_y']
+        for i in range(len(data['bowl_{}'.format(configs.bowl_name)]['regions'])):
+            x_points =  data['bowl_{}'.format(configs.bowl_name)]['regions'][i]['shape_attributes']['all_points_x']
+            y_points = data['bowl_{}'.format(configs.bowl_name)]['regions'][i]['shape_attributes']['all_points_y']
             # x_poly.append(x_points)
             # y_poly.append(y_points)
             polygon = []

@@ -20,16 +20,19 @@ from shapely.geometry import Point
 from shapely.geometry.polygon import Polygon
 import csv
 import pandas
-
-file = "averages_2sec_bowl_20.csv"
-
+import configs
+# global average_per_seconds
+global filename
+filename = "average_velocity_bowl_{}_{}_secs.csv".format(configs.bowl_name, configs.average_per_seconds)
+print("filename is : ", filename)
+# exit(0)
 json_file_path = "./bowl_data_15_20_titan.json"
 with open(json_file_path, "r") as json_file:
     data = json.load(json_file)
 points = []
-for i in range(1, len(data['bowl_20']['regions'])):
-    x_points =  data['bowl_20']['regions'][i]['shape_attributes']['all_points_x']
-    y_points = data['bowl_20']['regions'][i]['shape_attributes']['all_points_y']
+for i in range(1, len(data['bowl_{}'.format(configs.bowl_name)]['regions'])):
+    x_points =  data['bowl_{}'.format(configs.bowl_name)]['regions'][i]['shape_attributes']['all_points_x']
+    y_points = data['bowl_{}'.format(configs.bowl_name)]['regions'][i]['shape_attributes']['all_points_y']
     # x_poly.append(x_points)
     # y_poly.append(y_points)
     polygon = []
@@ -218,8 +221,8 @@ def run(sequence_dir, detection_file, output_file, min_confidence,
         average_region_velocity["sectors"].append(keys)
         # average_region_velocity["sectors"].append(keys)
         velocity_append[keys] = {"velocity" : []}
-        for sec in range(0, 54, 2):
-            average_region_velocity["velocity_{}_{}".format(sec, sec+2)] =  []
+        for sec in range(0, configs.video_length, configs.average_per_seconds):
+            average_region_velocity["velocity_{}_{}".format(sec, sec+configs.average_per_seconds)] =  []
 
 
     
@@ -227,11 +230,12 @@ def run(sequence_dir, detection_file, output_file, min_confidence,
     # exit(0)
     
     def get_region_velocities(prev_frame_stats, curr_frame_stats, velocity_append, average_region_velocity, frame_idx, seconds):
-        # global frame_count
+        # global average_per_seconds
         # global seconds
         # global velocity_append
         # print(" previous frame stats : ", prev_frame_stats)
         # print("curfrent frame stats : ", curr_frame_stats)
+        flag = 0
         region_vel = {}
         for keys in curr_frame_stats:
             region_vel[keys] = {"velocity" : []}
@@ -270,24 +274,34 @@ def run(sequence_dir, detection_file, output_file, min_confidence,
             if np.isnan(region_vel[keys]["velocity"]):
                 region_vel[keys]["velocity"] = 0.0
             velocity_append[keys]["velocity"].append(region_vel[keys]["velocity"])
-            # print("frame count is : ", frame_idx)
-            if frame_idx %int((300/52)*2) ==0:
-                
+            # print("frame count is : ", frame_idx)velocity_append
+            if (frame_idx %int((configs.num_frames/configs.actual_video_length)*configs.average_per_seconds) ==0):
+                # print("frame_idx is :", frame_idx)
                 average_vel = np.mean(velocity_append[keys]["velocity"])
-                fieldnames = "velocity_{}_{}".format(seconds, seconds+2)
+                fieldnames = "velocity_{}_{}".format(seconds, seconds+configs.average_per_seconds)
+                print("fieldname is : ", fieldnames)
                 average_region_velocity[fieldnames].append(average_vel)
                 # writer = csv.DictWriter(csvfile, fieldnames=fieldnames)
-                print(" seconds are : ", seconds)
+                # print(" seconds are : ", seconds)
                 # velocity_append = {}
 
                 velocity_append[keys] = {"velocity" : []}
                 # frame_count +=1
-            
-        print("seconda are : ", seconds)
+            elif (configs.num_frames - frame_idx < int((configs.num_frames/configs.actual_video_length)*configs.average_per_seconds)):
+                average_vel = np.mean(velocity_append[keys]["velocity"])
+                if configs.num_frames - frame_idx ==1:
+                    fieldnames = "velocity_{}_{}".format(seconds, seconds+configs.average_per_seconds)
+                    print("fieldname is : ", fieldnames)
+                    average_region_velocity[fieldnames].append(average_vel)
+
+                    print("going here")
+                flag = 1
+        # print("seconda are : ", seconds)
+
         # print(" region velocity is : ", region_vel)
-        if frame_idx %int((300/52)*2) ==0:
-            seconds +=2
-            print("average region_velocity is : ", average_region_velocity)
+        if frame_idx %int((configs.num_frames/configs.actual_video_length)*configs.average_per_seconds) ==0:
+            seconds +=configs.average_per_seconds
+            # print("average region_velocity is : ", average_region_velocity)
             
               
         return region_vel, average_region_velocity, velocity_append, seconds 
@@ -422,7 +436,7 @@ def run(sequence_dir, detection_file, output_file, min_confidence,
     sorted_keys = sorted(average_region_velocity.keys())
 
     # print("average region velocity is ", average_region_velocity)
-    with open("video_data_2.csv", "w") as csvfile:
+    with open(filename, "w") as csvfile:
         fieldnames = sorted_keys
         writer = csv.DictWriter(csvfile, fieldnames=fieldnames)
     
