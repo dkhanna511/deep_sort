@@ -23,7 +23,7 @@ import pandas
 import configs
 # global average_per_seconds
 global filename
-filename = "average_velocity_bowl_{}_{}_secs.csv".format(configs.bowl_name, configs.average_per_seconds)
+filename = "median_velocity_bowl_{}_{}_secs.csv".format(configs.bowl_name, configs.average_per_seconds)
 print("filename is : ", filename)
 # exit(0)
 json_file_path = "./bowl_data_15_20_titan.json"
@@ -277,7 +277,7 @@ def run(sequence_dir, detection_file, output_file, min_confidence,
             # print("frame count is : ", frame_idx)velocity_append
             if (frame_idx %int((configs.num_frames/configs.actual_video_length)*configs.average_per_seconds) ==0):
                 # print("frame_idx is :", frame_idx)
-                average_vel = np.mean(velocity_append[keys]["velocity"])
+                average_vel = np.median(velocity_append[keys]["velocity"])
                 fieldnames = "velocity_{}_{}".format(seconds, seconds+configs.average_per_seconds)
                 print("fieldname is : ", fieldnames)
                 average_region_velocity[fieldnames].append(average_vel)
@@ -288,7 +288,7 @@ def run(sequence_dir, detection_file, output_file, min_confidence,
                 velocity_append[keys] = {"velocity" : []}
                 # frame_count +=1
             elif (configs.num_frames - frame_idx < int((configs.num_frames/configs.actual_video_length)*configs.average_per_seconds)):
-                average_vel = np.mean(velocity_append[keys]["velocity"])
+                average_vel = np.median(velocity_append[keys]["velocity"])
                 if configs.num_frames - frame_idx ==1:
                     fieldnames = "velocity_{}_{}".format(seconds, seconds+configs.average_per_seconds)
                     print("fieldname is : ", fieldnames)
