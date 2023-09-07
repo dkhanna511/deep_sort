@@ -22,8 +22,8 @@ import csv
 import configs
 # global average_per_seconds
 global filename
-filename = "mode_velocity_bowl_{}_{}_secs.csv".format(configs.bowl_name, configs.average_per_seconds)
-print("filename is : ", filename)
+filename = "corrected_mean_velocity_bowl_{}_{}_secs.csv".format(configs.bowl_name, configs.average_per_seconds)
+# print("filename is : ", filename)
 # exit(0)
 json_file_path = "./bowl_data_15_20_titan.json"
 with open(json_file_path, "r") as json_file:
@@ -194,6 +194,13 @@ def run(sequence_dir, detection_file, output_file, min_confidence,
         upper_bound = q3 + 1.5 * iqr
         return arr[(arr >= lower_bound) & (arr <= upper_bound)]
     
+
+    def reject_outliers(data, m = 2.):
+        d = np.abs(data - np.median(data))
+        mdev = np.median(d)
+        s = d/mdev if mdev else np.zeros(len(d))
+        return data[s<m]
+    
     def frame_stats(pairs, results, points):
 
         regions = get_velocity_data_structure(points)
@@ -228,7 +235,7 @@ def run(sequence_dir, detection_file, output_file, min_confidence,
         # average_region_velocity["sectors"].append(keys)
         velocity_append[keys] = {"velocity" : []}
         for sec in range(0, configs.video_length, configs.average_per_seconds):
-            average_region_velocity["velocity_{}_{}".format(sec, sec+configs.average_per_seconds)] =  []
+            average_region_velocity["velocity_{:03}_{:03}".format(sec, sec+configs.average_per_seconds)] =  []
 
 
     
@@ -289,19 +296,29 @@ def run(sequence_dir, detection_file, output_file, min_confidence,
                         part_instant_velocity.append(id_displacement / time_taken)
                         break
                     
-            region_vel[keys]["velocity"]  =round(np.mean(part_instant_velocity))
+            region_vel[keys]["velocity"]  =round(np.mean(part_instant_velocity), 4)
             if np.isnan(region_vel[keys]["velocity"]):
                 region_vel[keys]["velocity"] = 0.0
             velocity_append[keys]["velocity"].append(region_vel[keys]["velocity"])
             # print("frame count is : ", frame_idx)velocity_append
             if (frame_idx %int((configs.num_frames/configs.actual_video_length)*configs.average_per_seconds) ==0):
                 # print("frame_idx is :", frame_idx)
-                average_vel = calculate_mode(velocity_append[keys]["velocity"])
-                if len(average_vel) ==0:
-                    average_vel = np.median(velocity_append[keys]["velocity"])
-                print(" average velocity is :", average_vel)
-                fieldnames = "velocity_{}_{}".format(seconds, seconds+configs.average_per_seconds)
-                print("fieldname is : ", fieldnames)
+                temp_vel  = np.asarray(velocity_append[keys]["velocity"])
+                # print("velocity is :",velocity_append[keys]["velocity"])
+                result = np.any(temp_vel > 0)
+                # print("result is : ", result)
+                if result:
+                    corrected_velocities = reject_outliers(temp_vel)
+                    print("original velocity is :", temp_vel)
+                    print("corrected velocity is : ", corrected_velocities)
+
+                    average_vel = np.mean(corrected_velocities)
+                else:
+                    average_vel = np.mean(velocity_append[keys]["velocity"])
+                
+                # print(" average velocity is :", average_vel)
+                fieldnames = "velocity_{:03}_{:03}".format(seconds, seconds+configs.average_per_seconds)
+                # print("fieldname is : ", fieldnames)
                 average_region_velocity[fieldnames].append(average_vel)
                 # writer = csv.DictWriter(csvfile, fieldnames=fieldnames)
                 # print(" seconds are : ", seconds)
@@ -310,15 +327,24 @@ def run(sequence_dir, detection_file, output_file, min_confidence,
                 velocity_append[keys] = {"velocity" : []}
                 # frame_count +=1
             elif (configs.num_frames - frame_idx < int((configs.num_frames/configs.actual_video_length)*configs.average_per_seconds)):
-                average_vel = calculate_mode(velocity_append[keys]["velocity"])
-                if len(average_vel) ==0:
-                    average_vel = np.median(velocity_append[keys]["velocity"])
+                temp_vel  = np.asarray(velocity_append[keys]["velocity"])
+                # print("velocity is :",velocity_append[keys]["velocity"])
+                result = np.any(temp_vel > 0)
+                # print("result is : ", result)
+                if result:
+                    corrected_velocities = reject_outliers(temp_vel)
+                    print("original velocity is :", temp_vel)
+                    print("corrected velocity is : ", corrected_velocities)
+
+                    average_vel = np.mean(corrected_velocities)
+                else:
+                    average_vel = np.mean(velocity_append[keys]["velocity"])
                 if configs.num_frames - frame_idx ==1:
-                    fieldnames = "velocity_{}_{}".format(seconds, seconds+configs.average_per_seconds)
-                    print("fieldname is : ", fieldnames)
+                    fieldnames = "velocity_{:03}_{:03}".format(seconds, seconds+configs.average_per_seconds)
+                    # print("fieldname is : ", fieldnames)
                     average_region_velocity[fieldnames].append(average_vel)
 
-                    print("going here")
+                    # print("going here")
                 flag = 1
         # print("seconda are : ", seconds)
 
@@ -453,9 +479,9 @@ def run(sequence_dir, detection_file, output_file, min_confidence,
 
     # Store results.
     f = open(output_file, 'w')
-    for row in results:
-        print('%d,%d,%.2f,%.2f,%.2f,%.2f,1,-1,-1,-1' % (
-            row[0], row[1], row[2], row[3], row[4], row[5]),file=f)
+    # for row in results:
+        # print('%d,%d,%.2f,%.2f,%.2f,%.2f,1,-1,-1,-1' % (
+        #     row[0], row[1], row[2], row[3], row[4], row[5]),file=f)
 
     sorted_keys = sorted(average_region_velocity.keys())
 
@@ -466,10 +492,10 @@ def run(sequence_dir, detection_file, output_file, min_confidence,
     
         writer.writeheader()
         for i in range(len(average_region_velocity["sectors"])):
-            print(" i is : ", i)
+            # print(" i is : ", i)
             print("sector is :", average_region_velocity["sectors"][i])
             row = {field: average_region_velocity[field][i] for field in fieldnames}
-            print("row is :", row)
+            # print("row is :", row)
             writer.writerow(row)
 def bool_string(input_string):
     if input_string not in {"True","False"}:
