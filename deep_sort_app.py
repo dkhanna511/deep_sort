@@ -19,11 +19,10 @@ import json
 from shapely.geometry import Point
 from shapely.geometry.polygon import Polygon
 import csv
-import pandas
 import configs
 # global average_per_seconds
 global filename
-filename = "median_velocity_bowl_{}_{}_secs.csv".format(configs.bowl_name, configs.average_per_seconds)
+filename = "mode_velocity_bowl_{}_{}_secs.csv".format(configs.bowl_name, configs.average_per_seconds)
 print("filename is : ", filename)
 # exit(0)
 json_file_path = "./bowl_data_15_20_titan.json"
@@ -187,6 +186,13 @@ def run(sequence_dir, detection_file, output_file, min_confidence,
     # pairs = get_empty_pair_grid(xs, ys)
     pairs = get_polygons(points)
 
+    def remove_outliers_iqr(arr):
+        q1 = np.percentile(arr, 25)  # 1st quartile
+        q3 = np.percentile(arr, 75)  # 3rd quartile
+        iqr = q3 - q1
+        lower_bound = q1 - 1.5 * iqr
+        upper_bound = q3 + 1.5 * iqr
+        return arr[(arr >= lower_bound) & (arr <= upper_bound)]
     
     def frame_stats(pairs, results, points):
 
@@ -228,7 +234,20 @@ def run(sequence_dir, detection_file, output_file, min_confidence,
     
     print("average_region velocity is : ", average_region_velocity)
     # exit(0)
+    def calculate_mode(data):
+        mode_dict = {}
+        
+        for item in data:
+            if item in mode_dict:
+                mode_dict[item] += 1
+            else:
+                mode_dict[item] = 1
+        
+        modes = [k for k, v in mode_dict.items() if v == max(mode_dict.values())]
+        
+        return modes
     
+
     def get_region_velocities(prev_frame_stats, curr_frame_stats, velocity_append, average_region_velocity, frame_idx, seconds):
         # global average_per_seconds
         # global seconds
@@ -270,14 +289,17 @@ def run(sequence_dir, detection_file, output_file, min_confidence,
                         part_instant_velocity.append(id_displacement / time_taken)
                         break
                     
-            region_vel[keys]["velocity"]  =round(np.mean(part_instant_velocity), 4)
+            region_vel[keys]["velocity"]  =round(np.mean(part_instant_velocity))
             if np.isnan(region_vel[keys]["velocity"]):
                 region_vel[keys]["velocity"] = 0.0
             velocity_append[keys]["velocity"].append(region_vel[keys]["velocity"])
             # print("frame count is : ", frame_idx)velocity_append
             if (frame_idx %int((configs.num_frames/configs.actual_video_length)*configs.average_per_seconds) ==0):
                 # print("frame_idx is :", frame_idx)
-                average_vel = np.median(velocity_append[keys]["velocity"])
+                average_vel = calculate_mode(velocity_append[keys]["velocity"])
+                if len(average_vel) ==0:
+                    average_vel = np.median(velocity_append[keys]["velocity"])
+                print(" average velocity is :", average_vel)
                 fieldnames = "velocity_{}_{}".format(seconds, seconds+configs.average_per_seconds)
                 print("fieldname is : ", fieldnames)
                 average_region_velocity[fieldnames].append(average_vel)
@@ -288,7 +310,9 @@ def run(sequence_dir, detection_file, output_file, min_confidence,
                 velocity_append[keys] = {"velocity" : []}
                 # frame_count +=1
             elif (configs.num_frames - frame_idx < int((configs.num_frames/configs.actual_video_length)*configs.average_per_seconds)):
-                average_vel = np.median(velocity_append[keys]["velocity"])
+                average_vel = calculate_mode(velocity_append[keys]["velocity"])
+                if len(average_vel) ==0:
+                    average_vel = np.median(velocity_append[keys]["velocity"])
                 if configs.num_frames - frame_idx ==1:
                     fieldnames = "velocity_{}_{}".format(seconds, seconds+configs.average_per_seconds)
                     print("fieldname is : ", fieldnames)
