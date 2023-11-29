@@ -2,7 +2,7 @@ import pandas as pd
 import matplotlib.pyplot as plt
 import configs
 # Load the CSV file into a DataFrame
-df = pd.read_csv('corrected_mean_velocity_bowl_{}_{}_secs.csv'.format(configs.bowl_name, configs.average_per_seconds))
+df = pd.read_csv('ATS_Data_Sep6/median_velocity_bowl_{}_{}_secs.csv'.format(configs.bowl_name, configs.average_per_seconds))
 # ax = plt.figure(figsize=(5, 6))
 fig, ax = plt.subplots()
 # Extract region names and velocity data
@@ -14,9 +14,9 @@ for i in range(len(regions)):
     plt.plot(velocities.iloc[i], label=regions.iloc[i])
 
 # Customize the plot
-plt.title('Average Velocities of parts in Bowl {} over {} seconds (for {} seconds each)'.format(configs.bowl_name, configs.actual_video_length, configs.average_per_seconds))
+plt.title('Median Velocities of parts in Bowl {} over {} seconds (for {} seconds each)'.format(configs.bowl_name, configs.actual_video_length, configs.average_per_seconds))
 plt.xlabel('Seconds')
-plt.ylabel('Average Velocity (pixels/second)')
+plt.ylabel('Median Velocity (pixels/second)')
 plt.xticks(range(configs.actual_video_length), ['{}'.format(h) for h in range(0, configs.actual_video_length+configs.average_per_seconds, configs.average_per_seconds)])
 # plt.xticks([0, 10, 20, 30, 40, 50], ['{}'.format(h) for h in range(0, configs.actual_video_length+configs.average_per_seconds, configs.average_per_seconds)] )
 ax.autoscale(enable=None, axis="x", tight=True)

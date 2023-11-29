@@ -91,8 +91,13 @@ class Visualization(object):
 
     def __init__(self, seq_info, update_ms):
         image_shape = seq_info["image_size"][::-1]
+        print(" image shape is : ", image_shape)
         aspect_ratio = float(image_shape[1]) / image_shape[0]
         image_shape = 1024, int(aspect_ratio * 1024)
+        # print(" image shape is : ", image_shape)
+
+        # exit(0)
+        
         self.viewer = ImageViewer(
             update_ms, image_shape, "Figure %s" % seq_info["sequence_name"])
         self.viewer.thickness = 1
@@ -111,6 +116,7 @@ class Visualization(object):
         self.frame_idx += 1
         return True
     
+    # def get_top_left(self, polygon):
         
     def set_image(self, image):
         self.viewer.image = image
@@ -136,13 +142,16 @@ class Visualization(object):
         #     y += self.pixel_step
 
 
-        json_file_path = "./bowl_data_15_20_titan.json"
+        if configs.bowl_name =='titan':
+            json_file_path = "./Bowl_annotations/bowl_titan_latest_normal_operation.json"
+        elif configs.bowl_name =='20':
+            json_file_path = "./Bowl_annotations/bowl_data_15_20_titan.json"
         # print("annotation json")
         with open(json_file_path, "r") as json_file:
             data = json.load(json_file)
         x_poly, y_poly = [], []
         points = []
-        for i in range(len(data['bowl_{}'.format(configs.bowl_name)]['regions'])):
+        for i in range(0, len(data['bowl_{}'.format(configs.bowl_name)]['regions'])):
             x_points =  data['bowl_{}'.format(configs.bowl_name)]['regions'][i]['shape_attributes']['all_points_x']
             y_points = data['bowl_{}'.format(configs.bowl_name)]['regions'][i]['shape_attributes']['all_points_y']
             # x_poly.append(x_points)
@@ -158,20 +167,41 @@ class Visualization(object):
         isClosed = True
         color = (255, 0, 0)
         thickness = 2
+        np.random.seed(42)
+        COLORS = np.random.randint(0, 255, size=(len(points) - 1, 3),
+		            dtype="uint8")
+        COLORS = np.vstack([[0, 0, 0], COLORS]).astype("uint8")
 
+        legend = np.zeros(((len(points) * 25) + 25, 300, 3), dtype="uint8")
         # draw closed polyline
-        for i in range(1, len(points)):
+        for i in range (0, len(points)):
+            # color = COLORS[i]
+            # cv2.putText(legend, i, (5, (i * 25) + 17), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0, 0, 255), 2)
+	        # cv2.rectangle(legend, (100, (i * 25)), (300, (i * 25) + 25),tuple(color), -1)
             polygon = Polygon(points[i])
+            xx,yy,w,h = cv2.boundingRect(np.array(points[i]))
+            rect = cv2.minAreaRect(np.array(points[i]))
+            box = cv2.boxPoints(rect)
+            # print(" box is : ", box)
+            # exit(0)
+            pts = np.array(points[i], dtype=np.int32)
+            # print("point[i] is : ", points[i])
+            # topmost_then_leftmost_point =  min(pts, key=lambda pt: (pt[0][1],  pt[0][0]))[0]
+            min_x = min(p[0] for p in pts)
+            min_y = min(p[1] for p in pts)
+            # print(" top left point is : ", topmost_then_leftmost_point)
             centroid = mapping(polygon.centroid)
             xx, yy = centroid['coordinates']
-            pts = np.array(points[i])
+            # exit(0)
+            
             # print("pts are :", pts)
             pts = pts.reshape((-1, 1, 2))
-            cv2.putText(image, str(i), (int(xx), int(yy)), cv2.FONT_HERSHEY_PLAIN,1, (0, 255, 0),2 )
-
             cv2.polylines(image, [pts], isClosed, color, thickness)
 
-        cv2.putText(image, "image dim: {}, {}".format(image.shape[0], image.shape[1]), (10, 20), cv2.FONT_HERSHEY_SIMPLEX,0.7, (255, 255, 0),2 )
+            # cv2.putText(image, str(i), (int(xx)-15, int(yy)), cv2.FONT_HERSHEY_PLAIN,1, (255, 255, 0),2 )
+
+            
+        cv2.putText(image, "image dim: {}, {}".format(image.shape[1], image.shape[0]), (10, 20), cv2.FONT_HERSHEY_SIMPLEX,0.7, (255, 255, 0),2 )
 
             
     def draw_groundtruth(self, track_ids, boxes):

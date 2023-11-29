@@ -22,14 +22,17 @@ import csv
 import configs
 # global average_per_seconds
 global filename
-filename = "corrected_mean_velocity_bowl_{}_{}_secs.csv".format(configs.bowl_name, configs.average_per_seconds)
+filename = "./Results/corrected_mean_velocity_bowl_{}_{}_secs.csv".format(configs.bowl_name, configs.average_per_seconds)
 # print("filename is : ", filename)
 # exit(0)
-json_file_path = "./bowl_data_15_20_titan.json"
+if configs.bowl_name =='titan':
+    json_file_path = "./Bowl_annotations/bowl_titan_latest_normal_operation.json"
+elif configs.bowl_name =='20':
+    json_file_path = "./Bowl_annotations/bowl_data_15_20_titan.json"
 with open(json_file_path, "r") as json_file:
     data = json.load(json_file)
 points = []
-for i in range(1, len(data['bowl_{}'.format(configs.bowl_name)]['regions'])):
+for i in range(0, len(data['bowl_{}'.format(configs.bowl_name)]['regions'])):
     x_points =  data['bowl_{}'.format(configs.bowl_name)]['regions'][i]['shape_attributes']['all_points_x']
     y_points = data['bowl_{}'.format(configs.bowl_name)]['regions'][i]['shape_attributes']['all_points_y']
     # x_poly.append(x_points)
@@ -212,9 +215,10 @@ def run(sequence_dir, detection_file, output_file, min_confidence,
             for j in range(len(results)):
                 point_tl, point_br = Point(results[j][2], results[j][3]), Point(results[j][2] + results[j][4], results[j][3]+results[j][5]) 
                 region = Polygon(pairs[keys]["points"])
-                
+                point_centre = Point(results[j][2] + results[j][4]/2, results[j][3]+results[j][5]/2)
                 # if (results[j][2] > pairs[i][0][0]) and (results[j][3] >  pairs[i][0][1]) and  (results[j][2] + results[j][4] < pairs[i][1][0]) and (results[j][3] + results[j][5] < pairs[i][1][1]):
-                if region.contains(point_tl) and region.contains(point_br):
+                # if region.contains(point_tl) and region.contains(point_br):
+                if region.contains(point_centre):
                     object_id_list.append(results[j][1])
                     object_position_list.append((results[j][2]+results[j][4]/2, results[j][3] + results[j][5]/2))
                     object_id_time = time.time()
@@ -302,7 +306,7 @@ def run(sequence_dir, detection_file, output_file, min_confidence,
             velocity_append[keys]["velocity"].append(region_vel[keys]["velocity"])
             # print("frame count is : ", frame_idx)velocity_append
             if (frame_idx %int((configs.num_frames/configs.actual_video_length)*configs.average_per_seconds) ==0):
-                # print("frame_idx is :", frame_idx)
+                 # print("frame_idx is :", frame_idx)
                 temp_vel  = np.asarray(velocity_append[keys]["velocity"])
                 # print("velocity is :",velocity_append[keys]["velocity"])
                 result = np.any(temp_vel > 0)
@@ -339,6 +343,17 @@ def run(sequence_dir, detection_file, output_file, min_confidence,
                     average_vel = np.mean(corrected_velocities)
                 else:
                     average_vel = np.mean(velocity_append[keys]["velocity"])
+                if configs.num_frames - frame_idx ==1:
+                    fieldnames = "velocity_{:03}_{:03}".format(seconds, seconds+configs.average_per_seconds)
+                    # print("fieldname is : ", fieldnames)
+                    average_region_velocity[fieldnames].append(average_vel)
+
+                    # print("going here")
+                flag = 1
+        # print("seconda are : ", seconds)
+
+        # print(" region velocity is : ", region_vel)
+                
                 if configs.num_frames - frame_idx ==1:
                     fieldnames = "velocity_{:03}_{:03}".format(seconds, seconds+configs.average_per_seconds)
                     # print("fieldname is : ", fieldnames)
@@ -464,9 +479,10 @@ def run(sequence_dir, detection_file, output_file, min_confidence,
             image = cv2.imread(
                 seq_info["image_filenames"][frame_idx], cv2.IMREAD_COLOR)
             vis.set_image(image.copy())
-            vis.draw_detections(detections)
             if region_vel !={} :
                 vis.draw_velocities(region_vel, points)
+            # vis.draw_detections(detections)
+            
             vis.draw_trackers(tracker.tracks)
 
         # exit(0)
@@ -477,6 +493,7 @@ def run(sequence_dir, detection_file, output_file, min_confidence,
         visualizer = visualization.NoVisualization(seq_info)
     visualizer.run(frame_callback)
 
+    
     # Store results.
     f = open(output_file, 'w')
     # for row in results:
